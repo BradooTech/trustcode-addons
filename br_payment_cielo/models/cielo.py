@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# © 2016 Danimar Ribeiro, Trustcode
-# License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 
 import re
 import json
@@ -13,33 +11,33 @@ from datetime import datetime
 
 _logger = logging.getLogger(__name__)
 
-odoo_request = request
 
 
 class AcquirerCielo(models.Model):
     _inherit = 'payment.acquirer'
 
-    def _default_return_url(self):
-        base_url = self.env['ir.config_parameter'].get_param('web.base.url')
-        return "%s%s" % (base_url, '/shop/confirmation')
 
     provider = fields.Selection(selection_add=[('cielo', 'Cielo')])
     cielo_merchant_id = fields.Char(string='Cielo Merchant Id')
-    return_url = fields.Char(string="Url de Retorno",
-                             default=_default_return_url, size=300)
+    return_url = fields.Char(string="Url de Retorno", size=300)
+
+    @api.model
+    def generate_form(self, partner, product):
+        order = self.env['sale.order'].create({'partner_id': partner})
+        for item in  product:
+            item = self.env['product.template'].search([('default_code','=', item)]).id
+            self.env['sale.order.line'].create({'order_id': order.id, 'product_id': item})
+        self.env['payment.transaction'].create_transaction(order)
+        cielo = self.cielo_form_generate_values(order)
+        return cielo
 
     @api.multi
     def cielo_form_generate_values(self, values):
-        """ Função para gerar HTML POST da Cielo """
-        order = odoo_request.website.sale_get_order()
-        if not order or not order.payment_tx_id:
-            return {
-                'checkout_url': '/shop/payment',
-            }
-
+        merchant_id = self.env['payment.acquirer'].search([('name','=','Cielo')]).cielo_merchant_id
+        return_url = self.env['payment.acquirer'].search([('name','=','Cielo')]).return_url
         total_desconto = 0
         items = []
-        for line in order.order_line:
+        for line in values.order_line:
             if line.product_id.fiscal_type == 'service':
                 tipo = 'Service'
             elif line.product_id.fiscal_type == 'product':
@@ -48,71 +46,101 @@ class AcquirerCielo(models.Model):
                 tipo = 'Payment'
             total_desconto += line.discount
             item = {
-                "Name": line.product_id.name,
-                "Description": line.name,
-                "UnitPrice": "%d" % round(line.price_unit * 100),
-                "Quantity": "%d" % line.product_uom_qty,
-                "Type": tipo,
+                "Name": line.name, 
+                "Description": line.product_id.name, 
+                "UnitPrice": "%d" % round(line.price_unit * 100), 
+                "Quantity": "%d" % line.product_uom_qty, 
+                "Type": tipo, 
             }
             if line.product_id.default_code:
-                item["Sku"] = line.product_id.default_code
+                item["Sku"] = line.product_id.default_code 
             if line.product_id.weight:
-                item['Weight'] = "%d" % (line.product_id.weight * 1000)
+                item['Weight'] = "%d" % (line.product_id.weight * 1000) 
             items.append(item)
-        shipping = {
-            "Type": "WithoutShipping",
-            "TargetZipCode": re.sub('[^0-9]', '', order.partner_id.zip),
-        }
         address = {
-            "Street": order.partner_id.street,
-            "Number": order.partner_id.number,
-            "Complement": order.partner_id.street2,
-            "District": order.partner_id.district,
-            "City": order.partner_id.city_id.name,
-            "State": order.partner_id.state_id.code,
+            "Street": values.partner_id.street, 
+            "Number": values.partner_id.number, 
+            "Complement": values.partner_id.street2, 
+            "District": values.partner_id.district, 
+            "City": values.partner_id.city_id.name, 
+            "State": values.partner_id.state_id.code, 
         }
-        if (order.partner_id.street2) > 0:
-            address['Complement'] = order.partner_id.street2
-        payment = {"BoletoDiscount": 0, "DebitDiscount": 0}
+        if (values.partner_id.street2) > 0:
+            address['Complement'] = values.partner_id.street2
+        shipping = {
+            "Type": "WithoutShipping", 
+            "SourceZipCode": re.sub('[^0-9]', '', values.partner_id.zip),
+            "TargetZipCode": re.sub('[^0-9]', '', values.partner_id.zip),
+        }
+        payment = {"BoletoDiscount": 0, "DebitDiscount": 0} 
+        if values.template_id.contract_template:
+            payment['RecurrentPayment'] = self.check_recurring(values) 
         customer = {
-            "Identity": re.sub('[^0-9]', '', order.partner_id.cnpj_cpf or ''),
-            "FullName": order.partner_id.name,
-            "Email": order.partner_id.email,
-            "Phone": re.sub('[^0-9]', '', order.partner_id.phone or ''),
+            "Identity": re.sub('[^0-9]', '', values.partner_id.cnpj_cpf or ''),
+            "FullName": values.partner_id.name,
+            "Email": values.partner_id.email,
+            "Phone": re.sub('[^0-9]', '', values.partner_id.phone or ''),
         }
         total_desconto *= 100
-        discount = {'Type': 'Amount', 'Value': int(total_desconto)}
-        options = {"AntifraudEnabled": False, "ReturnUrl": self.return_url}
+        discount = {'Type': 'Amount', 'Value': int(total_desconto)} 
+        options = {"AntifraudEnabled": False, "ReturnUrl": return_url}
         order_json = {
-            "OrderNumber": values['reference'],
-            "SoftDescriptor": "FOOBARBAZ",
-            "Cart": {
-                "Discount": discount,
-                "Items": items,
+            "OrderNumber": values['name'], 
+            "SoftDescriptor": self.env['res.company'].search([('id','=',1)]).name.upper(),
+            "Cart": { 
+                "Discount": discount, 
+                "Items": items, 
             },
             "Shipping": shipping,
-            "Payment": payment,
+            "Payment": payment, 
             "Customer": customer,
-            "Options": options,
+            "Options": options
         }
+
         json_send = json.dumps(order_json)
         headers = {"Content-Type": "application/json",
-                   "MerchantId": self.cielo_merchant_id}
+                   "MerchantId": merchant_id}
+
         request_post = requests.post(
             "https://cieloecommerce.cielo.com.br/api/public/v1/orders",
             data=json_send, headers=headers, verify=False)
         response = request_post.text
         resposta = json.loads(response)
-        if "message" in resposta:
-            request.session.update({
-                'sale_transaction_id': False,
-            })
-            _logger.error(resposta)
-            raise Exception("Erro ao comunicar com a CIELO")
 
-        return {
-            'checkout_url': resposta["settings"]["checkoutUrl"],
-        }
+        if "message" in resposta:
+            _logger.error(resposta)
+            return resposta
+        else:
+            return {
+                'checkout_url': resposta["settings"]["checkoutUrl"]
+                }
+
+    @api.multi
+    def check_recurring(self, values):
+        interval = ''
+        if values.template_id.contract_template:
+            rec_int = values.template_id.contract_template.recurring_interval
+            rec_rule = values.template_id.contract_template.recurring_rule_type
+            if rec_rule == 'monthly':
+                if rec_int == 1:
+                    interval = 'Monthly'
+                elif rec_int == 2:
+                    interval = 'Bimonthly'
+                elif rec_int == 3:
+                    interval = 'Quarterly'
+                elif rec_int == 5:
+                    interval = 'SemiAnnual'
+                else:
+                    interval = ''
+            elif rec_rule == 'yearly':
+                if rec_int == 1:
+                    interval = 'Annual'
+                else:
+                    interval = ''
+
+        end_date = values.date_order[0:10]
+
+        return {"Interval": interval, "EndDate": end_date}
 
 
 class TransactionCielo(models.Model):
@@ -133,6 +161,8 @@ class TransactionCielo(models.Model):
          ('4', u'Diners'), ('5', u'Elo'), ('6', u'Aura'), ('7', u'JCB')],
         string=u"Bandeira Cartão")
     payment_boletonumber = fields.Char(string=u"Número boleto", size=100)
+    payment_maskedcreditcard = fields.Char(string=u"Número do Cartão de Crédito", size=100)
+    tid = fields.Char(string=u"TID")
 
     url_cielo = fields.Char(
         string=u"Cielo", size=60,
@@ -176,8 +206,23 @@ class TransactionCielo(models.Model):
             'payment_installments': data.get('payment_installments', False),
             'payment_boletonumber': data.get('payment_boletonumber', False),
             'payment_method_brand': data.get('payment_method_brand', False),
+            'payment_maskedcreditcard': data.get('payment_maskedcreditcard', False),
+            'tid': data.get('tid', False),
             'state_cielo': state_cielo
         }
         res = {}
         res.update({k: v for k, v in values.items() if v})
         return self.write(res)
+
+    @api.multi
+    def create_transaction(self, vals):
+        cielo_id = self.env['payment.acquirer'].search([('name','=', 'Cielo')]).id
+        values = {
+            'reference': vals.name,
+            'sale_order_id': vals.id,
+            'amount': vals.amount_total,
+            'currency_id': self.env.user.company_id.currency_id.id,
+            'partner_id': vals.partner_id.id,
+            'acquirer_id': cielo_id,
+        }
+        return self.create(values)

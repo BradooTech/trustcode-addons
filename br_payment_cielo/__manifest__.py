@@ -14,6 +14,10 @@
         'payment',
         'website_sale',
         'br_base',
+        'base',
+        'sale',
+        'website_contract',
+        'subscription'
     ],
     'data': [
         'views/cielo.xml',

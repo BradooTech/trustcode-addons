@@ -27,7 +27,9 @@
                         <field name="transaction_type" />
                         <field name="payment_installments" />
                         <field name="payment_method_brand" />
+                        <field name="payment_maskedcreditcard"/>
                         <field name="payment_boletonumber" />
+                        <field name="tid"/>
                     </group>
                 </page>
             </xpath>
