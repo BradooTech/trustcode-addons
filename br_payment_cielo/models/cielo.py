@@ -22,14 +22,18 @@ class AcquirerCielo(models.Model):
     return_url = fields.Char(string="Url de Retorno", size=300)
 
     @api.model
-    def generate_form(self, partner, product):
-        order = self.env['sale.order'].create({'partner_id': partner})
-        for item in  product:
-            item = self.env['product.template'].search([('default_code','=', item)]).id
-            self.env['sale.order.line'].create({'order_id': order.id, 'product_id': item})
+    def generate_form(self, partner, template_code, coupon=False):
+        template = self.env['sale.quote.template'].search([('code','=', template_code)])
+        order = self.env['sale.order'].create({'partner_id': partner, 'template_id': template.id})
+        order.cupon_lexis = coupon
+        order.calc_validate_cupon_lexis_api()
+        for item in template.quote_line:
+            line = self.env['sale.order.line'].create({'order_id': order.id, 'product_id': item.product_id.id})
+            line._onchange_discount()
         self.env['payment.transaction'].create_transaction(order)
         cielo = self.cielo_form_generate_values(order)
         return cielo
+
 
     @api.multi
     def cielo_form_generate_values(self, values):
@@ -44,7 +48,7 @@ class AcquirerCielo(models.Model):
                 tipo = 'Asset'
             else:
                 tipo = 'Payment'
-            total_desconto += line.discount
+            total_desconto = values.total_desconto
             item = {
                 "Name": line.name, 
                 "Description": line.product_id.name, 
@@ -81,6 +85,7 @@ class AcquirerCielo(models.Model):
             "Email": values.partner_id.email,
             "Phone": re.sub('[^0-9]', '', values.partner_id.phone or ''),
         }
+        
         total_desconto *= 100
         discount = {'Type': 'Amount', 'Value': int(total_desconto)} 
         options = {"AntifraudEnabled": False, "ReturnUrl": return_url}
@@ -114,7 +119,7 @@ class AcquirerCielo(models.Model):
             return {
                 'checkout_url': resposta["settings"]["checkoutUrl"]
                 }
-
+            
     @api.multi
     def check_recurring(self, values):
         interval = ''
