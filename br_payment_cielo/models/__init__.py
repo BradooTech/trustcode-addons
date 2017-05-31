@@ -4,3 +4,4 @@
 
 from . import cielo
 from . import res_config
+from . import payment_transaction_history

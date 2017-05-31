@@ -169,6 +169,7 @@ class TransactionCielo(models.Model):
     payment_boletonumber = fields.Char(string=u"Número boleto", size=100)
     payment_maskedcreditcard = fields.Char(string=u"Número do Cartão de Crédito", size=100)
     tid = fields.Char(string=u"TID")
+    payment_history_id = fields.One2many('payment.transaction.history','payment_transaction_id', string='Payment History')
 
     url_cielo = fields.Char(
         string=u"Cielo", size=60,
@@ -190,6 +191,7 @@ class TransactionCielo(models.Model):
         amount = float(data.get('amount', '0')) / 100.0
         state_cielo = data.get('payment_status')
 
+
         # 1 - Pendente (Para todos os meios de pagamento)
         # 2 - Pago (Para todos os meios de pagamento)
         # 3 - Negado (Somente para Cartão Crédito)
@@ -203,7 +205,10 @@ class TransactionCielo(models.Model):
         
         if state == 'done':
             self.create_invoice_nfse()
-                         
+
+        self.env['payment.transaction.history'].create({'payment_transaction_id':self.id,'state':state,'date_now':datetime.now()})
+        self.partner_id.write({'last_payment_state':state,'sync_lexis':False})
+
         values = {
             'reference': reference,
             'amount': amount,

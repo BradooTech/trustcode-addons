@@ -32,6 +32,17 @@
                         <field name="tid"/>
                     </group>
                 </page>
+                <page name="payment_history" string="Payment History">
+                        <group string="History">
+                            <field name='payment_history_id' options="{'no_create_edit': True, 'no_create': True}" domain="[('active','=',True)]" readonly='True'>
+                                <tree>
+                                    <field name='payment_transaction_id'/>
+                                    <field name='state'/>
+                                    <field name='date_now'/>
+                                </tree>
+                            </field>    
+                        </group>
+                    </page>
             </xpath>
             <field name="acquirer_reference" position="after">
                 <field name="url_cielo" widget="url" />
