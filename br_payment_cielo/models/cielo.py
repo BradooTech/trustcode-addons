@@ -9,6 +9,7 @@ from odoo import api, models, fields
 from odoo.http import request
 from datetime import datetime
 
+
 _logger = logging.getLogger(__name__)
 
 
@@ -199,7 +200,10 @@ class TransactionCielo(models.Model):
         # 8 - Chargeback (somente para Cartão de Crédito)
         state = 'pending' if state_cielo == '1' else 'error'
         state = 'done' if state_cielo in ('2', '7') else state
-
+        
+        if state == 'done':
+            self.create_invoice_nfse()
+                         
         values = {
             'reference': reference,
             'amount': amount,
@@ -219,6 +223,17 @@ class TransactionCielo(models.Model):
         res.update({k: v for k, v in values.items() if v})
         return self.write(res)
 
+    
+    def action_report_nfse(self, invoice):
+        docs = self.env['invoice.eletronic'].search(
+            [('invoice_id', '=', invoice.id)])
+        if not docs:
+            raise UserError(u'Não existe um E-Doc relacionado à esta fatura')
+        action = self.env['report'].get_action(
+            docs.ids, 'br_nfse.main_template_br_nfse_danfe')
+        action['report_type'] = 'qweb-html'
+        return action
+
     @api.multi
     def create_transaction(self, vals):
         cielo_id = self.env['payment.acquirer'].search([('name','=', 'Cielo')]).id
@@ -231,3 +246,75 @@ class TransactionCielo(models.Model):
             'acquirer_id': cielo_id,
         }
         return self.create(values)
+    
+    @api.multi
+    def create_invoice_nfse(self):
+        invoice_line_ids_construct = []
+        for line in self.sale_order_id.order_line:
+            invoice_line_ids_construct.append(
+                    (0, 0, {
+                        'name': line.name,
+                        'origin': self.sale_order_id.name,
+                        'account_id': line.product_id.property_account_income_id.id,
+                        'price_unit': line.product_id.lst_price,
+                        'quantity': line.product_uom_qty,
+                        #'discount': 0.0,
+                        'uom_id': line.product_id.uom_id.id,
+                        'product_id': line.product_id.id,
+                        'product_type': line.product_id.type,
+                        'service_type_id': line.product_id.service_type_id.id,
+                        'pis_cst': '01',
+                        'cofins_cst': '01',
+                        'tax_issqn_id': line.product_id.taxes_id.id,
+                        'sale_line_ids': [(6, 0, [line.id])],
+                        #'invoice_line_tax_ids': [(6, 0, line.product_id.tax_ids)],
+                        }))
+            
+            invoice = self.env['account.invoice'].create({
+                'partner_id': self.sale_order_id.partner_id.id,
+                'fiscal_document_id': 35, #preencher
+                'document_serie_id': 3,     #preencher
+                'origin': self.sale_order_id.name,
+                'account_id': self.sale_order_id.partner_id.property_account_receivable_id.id,
+                'invoice_line_ids':invoice_line_ids_construct,
+                'date_invoice': datetime.now().strftime("%Y-%m-%d")
+                })
+                
+            invoice.action_invoice_open()
+            
+            edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
+            
+            ReportXml = self.env['ir.actions.report.xml']
+            Report = self.env['report']
+            
+            for doc in edoc:
+                if doc.state == 'draft':
+                    doc.action_send_eletronic_invoice()
+                    
+                    report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
+                    bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
+                    pdf_final = bin_pdf.encode('base64')
+                    attach = self.env['ir.attachment'].create({
+                        'name':'NFse ' + str(doc.partner_id.name),
+                        'res_model':'invoice.eletronic',
+                        'type':'binary',
+                        'datas_fname': 'Nfse.pdf',
+                        'res_id': doc.id,
+                        'datas': pdf_final,
+                        'res_name':'NFse'
+                    })
+                    
+                    attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
+                    
+                    mail_values = {
+                    'email_from': self.env.user.email,
+                    'reply_to': self.env.user.email,
+                    'email_to': doc.partner_id.email,
+                    'subject': 'Nfse de %s' % doc.partner_id.name,
+                    'model':'invoice.eletronic',
+                    'body_html': "Segue Nfse",
+                    'notification': True,
+                    'attachment_ids': [(4, attachment.id) for attachment in attachment_ids],
+                    }
+            
+                    mail = self.env['mail.mail'].create(mail_values)
