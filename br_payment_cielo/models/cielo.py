@@ -92,7 +92,7 @@ class AcquirerCielo(models.Model):
         options = {"AntifraudEnabled": False, "ReturnUrl": return_url}
         order_json = {
             "OrderNumber": values['name'], 
-            "SoftDescriptor": self.env['res.company'].search([('id','=',1)]).name.upper(),
+            # "SoftDescriptor": self.env['res.company'].search([('id','=',1)]).name.upper(),
             "Cart": { 
                 "Discount": discount, 
                 "Items": items, 
