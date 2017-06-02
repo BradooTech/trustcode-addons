@@ -285,41 +285,43 @@ class TransactionCielo(models.Model):
                 'date_invoice': datetime.now().strftime("%Y-%m-%d")
                 })
                 
-            invoice.action_invoice_open()
+            ''' Comentando para remoção dos dados de envio e geração de nota fiscal'''
+            # invoice.action_invoice_open()
             
-            edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
+
+            # edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
             
-            ReportXml = self.env['ir.actions.report.xml']
-            Report = self.env['report']
+            # ReportXml = self.env['ir.actions.report.xml']
+            # Report = self.env['report']
             
-            for doc in edoc:
-                if doc.state == 'draft':
-                    doc.action_send_eletronic_invoice()
+            # for doc in edoc:
+            #     if doc.state == 'draft':
+            #         doc.action_send_eletronic_invoice()
                     
-                    report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
-                    bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
-                    pdf_final = bin_pdf.encode('base64')
-                    attach = self.env['ir.attachment'].create({
-                        'name':'NFse ' + str(doc.partner_id.name),
-                        'res_model':'invoice.eletronic',
-                        'type':'binary',
-                        'datas_fname': 'Nfse.pdf',
-                        'res_id': doc.id,
-                        'datas': pdf_final,
-                        'res_name':'NFse'
-                    })
+            #         report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
+            #         bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
+            #         pdf_final = bin_pdf.encode('base64')
+            #         attach = self.env['ir.attachment'].create({
+            #             'name':'NFse ' + str(doc.partner_id.name),
+            #             'res_model':'invoice.eletronic',
+            #             'type':'binary',
+            #             'datas_fname': 'Nfse.pdf',
+            #             'res_id': doc.id,
+            #             'datas': pdf_final,
+            #             'res_name':'NFse'
+            #         })
                     
-                    attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
+            #         attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
                     
-                    mail_values = {
-                    'email_from': self.env.user.email,
-                    'reply_to': self.env.user.email,
-                    'email_to': doc.partner_id.email,
-                    'subject': 'Nfse de %s' % doc.partner_id.name,
-                    'model':'invoice.eletronic',
-                    'body_html': "Segue Nfse",
-                    'notification': True,
-                    'attachment_ids': [(4, attachment.id) for attachment in attachment_ids],
-                    }
+            #         mail_values = {
+            #         'email_from': self.env.user.email,
+            #         'reply_to': self.env.user.email,
+            #         'email_to': doc.partner_id.email,
+            #         'subject': 'Nfse de %s' % doc.partner_id.name,
+            #         'model':'invoice.eletronic',
+            #         'body_html': "Segue Nfse",
+            #         'notification': True,
+            #         'attachment_ids': [(4, attachment.id) for attachment in attachment_ids],
+            #         }
             
-                    mail = self.env['mail.mail'].create(mail_values)
+            #         mail = self.env['mail.mail'].create(mail_values)
