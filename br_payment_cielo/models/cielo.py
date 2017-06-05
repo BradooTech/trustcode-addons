@@ -8,6 +8,8 @@ import requests
 from odoo import api, models, fields
 from odoo.http import request
 from datetime import datetime
+from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 
 
 _logger = logging.getLogger(__name__)
@@ -208,6 +210,8 @@ class TransactionCielo(models.Model):
 
         self.env['payment.transaction.history'].create({'payment_transaction_id':self.id,'state':state,'date_now':datetime.now()})
         self.partner_id.write({'last_payment_state':state,'sync_lexis':False})
+        if state == 'done':
+            self.partner_id.write({'close_date': (datetime.now() + relativedelta(months=1)),'sync_lexis':False})
 
         values = {
             'reference': reference,
