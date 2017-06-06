@@ -8,6 +8,8 @@ import requests
 from odoo import api, models, fields
 from odoo.http import request
 from datetime import datetime
+from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 
 
 _logger = logging.getLogger(__name__)
@@ -92,7 +94,7 @@ class AcquirerCielo(models.Model):
         options = {"AntifraudEnabled": False, "ReturnUrl": return_url}
         order_json = {
             "OrderNumber": values['name'], 
-            "SoftDescriptor": self.env['res.company'].search([('id','=',1)]).name.upper(),
+            # "SoftDescriptor": self.env['res.company'].search([('id','=',1)]).name.upper(),
             "Cart": { 
                 "Discount": discount, 
                 "Items": items, 
@@ -168,6 +170,7 @@ class TransactionCielo(models.Model):
     payment_boletonumber = fields.Char(string=u"Número boleto", size=100)
     payment_maskedcreditcard = fields.Char(string=u"Número do Cartão de Crédito", size=100)
     tid = fields.Char(string=u"TID")
+    payment_history_id = fields.One2many('payment.transaction.history','payment_transaction_id', string='Payment History')
 
     url_cielo = fields.Char(
         string=u"Cielo", size=60,
@@ -189,6 +192,7 @@ class TransactionCielo(models.Model):
         amount = float(data.get('amount', '0')) / 100.0
         state_cielo = data.get('payment_status')
 
+
         # 1 - Pendente (Para todos os meios de pagamento)
         # 2 - Pago (Para todos os meios de pagamento)
         # 3 - Negado (Somente para Cartão Crédito)
@@ -202,8 +206,12 @@ class TransactionCielo(models.Model):
         
         if state == 'done':
             self.create_invoice_nfse()
-            
-                         
+
+        self.env['payment.transaction.history'].create({'payment_transaction_id':self.id,'state':state,'date_now':datetime.now()})
+        self.partner_id.write({'last_payment_state':state,'sync_lexis':False})
+        if state == 'done':
+            self.partner_id.write({'close_date': (datetime.now() + relativedelta(months=1)),'sync_lexis':False})
+
         values = {
             'reference': reference,
             'amount': amount,
@@ -280,31 +288,33 @@ class TransactionCielo(models.Model):
                 'date_invoice': datetime.now().strftime("%Y-%m-%d")
                 })
                 
-            invoice.action_invoice_open()
+            ''' Comentando para remoção dos dados de envio e geração de nota fiscal'''
+            # invoice.action_invoice_open()
             
-            edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
+
+            # edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
             
-            ReportXml = self.env['ir.actions.report.xml']
-            Report = self.env['report']
+            # ReportXml = self.env['ir.actions.report.xml']
+            # Report = self.env['report']
             
-            for doc in edoc:
-                if doc.state == 'draft':
-                    doc.action_send_eletronic_invoice()
+            # for doc in edoc:
+            #     if doc.state == 'draft':
+            #         doc.action_send_eletronic_invoice()
                     
-                    report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
-                    bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
-                    pdf_final = bin_pdf.encode('base64')
-                    attach = self.env['ir.attachment'].create({
-                        'name':'NFse ' + str(doc.partner_id.name),
-                        'res_model':'invoice.eletronic',
-                        'type':'binary',
-                        'datas_fname': 'Nfse.pdf',
-                        'res_id': doc.id,
-                        'datas': pdf_final,
-                        'res_name':'NFse'
-                    })
+            #         report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
+            #         bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
+            #         pdf_final = bin_pdf.encode('base64')
+            #         attach = self.env['ir.attachment'].create({
+            #             'name':'NFse ' + str(doc.partner_id.name),
+            #             'res_model':'invoice.eletronic',
+            #             'type':'binary',
+            #             'datas_fname': 'Nfse.pdf',
+            #             'res_id': doc.id,
+            #             'datas': pdf_final,
+            #             'res_name':'NFse'
+            #         })
                     
-                    attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
+            #         attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
                     
                     template_id = self.env.ref('br_payment_cielo.mail_template_data_lexis_nfse')
                     mail_template = self.env['mail.template'].browse(template_id.id)
