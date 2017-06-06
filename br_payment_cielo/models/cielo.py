@@ -316,11 +316,11 @@ class TransactionCielo(models.Model):
                     
             #         attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
                     
-                    template_id = self.env.ref('br_payment_cielo.mail_template_data_lexis_nfse')
-                    mail_template = self.env['mail.template'].browse(template_id.id)
-                    mail_template.update({
-                        'attachment_ids': [(4, attachment.id) for attachment in attachment_ids]
-                        })
+            #        template_id = self.env.ref('br_payment_cielo.mail_template_data_lexis_nfse')
+            #        mail_template = self.env['mail.template'].browse(template_id.id)
+            #        mail_template.update({
+            #            'attachment_ids': [(4, attachment.id) for attachment in attachment_ids]
+            #            })
                     
-                    mail_template.send_mail(self.id)
+            #        mail_template.send_mail(self.id)
             
