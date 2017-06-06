@@ -23,8 +23,27 @@
         'views/cielo.xml',
         'views/payment_acquirer.xml',
         'views/res_config_view.xml',
+        'data/nfs_email_template_data.xml',
         'data/cielo.xml',
     ],
+    
+    'images': [
+        'static/img/email_01.jpg',
+        'static/img/email_02.jpg',
+        'static/img/email_03.jpg',
+        'static/img/email_04.jpg',
+        'static/img/email_05.jpg',
+        'static/img/email_06.jpg',
+        'static/img/email_07.jpg',
+        'static/img/email_08.jpg',
+        'static/img/email_09.jpg',
+        'static/img/email_10.jpg',
+        'static/img/email_11.jpg',
+        'static/img/email_12.jpg',
+        'static/img/email_13.jpg',
+        'static/img/email_14.jpg',
+    ],
+    
     'application': True,
     'installable': True,
 }

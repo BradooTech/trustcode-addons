@@ -120,7 +120,6 @@ class AcquirerCielo(models.Model):
             return {
                 'checkout_url': resposta["settings"]["checkoutUrl"]
                 }
-            
     @api.multi
     def check_recurring(self, values):
         interval = ''
@@ -203,6 +202,7 @@ class TransactionCielo(models.Model):
         
         if state == 'done':
             self.create_invoice_nfse()
+            
                          
         values = {
             'reference': reference,
@@ -306,15 +306,11 @@ class TransactionCielo(models.Model):
                     
                     attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
                     
-                    mail_values = {
-                    'email_from': self.env.user.email,
-                    'reply_to': self.env.user.email,
-                    'email_to': doc.partner_id.email,
-                    'subject': 'Nfse de %s' % doc.partner_id.name,
-                    'model':'invoice.eletronic',
-                    'body_html': "Segue Nfse",
-                    'notification': True,
-                    'attachment_ids': [(4, attachment.id) for attachment in attachment_ids],
-                    }
+                    template_id = self.env.ref('br_payment_cielo.mail_template_data_lexis_nfse')
+                    mail_template = self.env['mail.template'].browse(template_id.id)
+                    mail_template.update({
+                        'attachment_ids': [(4, attachment.id) for attachment in attachment_ids]
+                        })
+                    
+                    mail_template.send_mail(self.id)
             
-                    mail = self.env['mail.mail'].create(mail_values)

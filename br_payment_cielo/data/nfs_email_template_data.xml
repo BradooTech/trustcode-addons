@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data noupdate="0">
+        <!-- notify to admin of module installation -->
+        <record id="mail_template_data_lexis_nfse" model="mail.template">
+            <field name="name">Nota fiscal.</field>
+            <field name="subject">Parabens pela compra!</field>
+            <field name="email_from">${user.email}</field>
+            <field name="email_to">${object.partner_id.email}</field>
+            <field name="lang">${user.lang}</field>
+            <field name="model_id" ref="model_payment_transaction"/>
+            <field eval="True" name="auto_delete"/>
+            <field name="body_html"><![CDATA[
+
+            <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<style type="text/css">
+    @import url(https://fonts.googleapis.com/css?family=Lato:300,400,700);
+</style>
+<style type="text/css">
+<!--
+body {
+    font-family:"Lato", "Lucida Grande", sans-serif;
+    font-size:15px;
+}
+-->
+</style>
+<title>Sucesso Email</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+</head>
+<body bgcolor="#FFFFFF">
+
+<table width="642" border="0" cellpadding="0" cellspacing="0" align="center">
+    <tr>
+        <td>
+            <img src="/br_payment_cielo/static/img/email_01.jpg" width="642" height="63" alt=""></td>
+    </tr>
+    <tr>
+        <td>
+            <table border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td>
+                        <img src="/br_payment_cielo/static/img/email_02.jpg" width="70" height="467" alt="">
+                    </td>
+                    <td>
+                        <table border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td>
+                                    <img src="/br_payment_cielo/static/img/email_03.jpg" width="496" height="69" alt="">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <font style="font-family: 'Lato', sans-serif;font-size: 19px;text-align:center;font-weight:400;color:#f01717;display:block;">PARABÉNS, VOCÊ AGORA É UM ASSINANTE LEXIS 360</font>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <img src="/br_payment_cielo/static/img/email_06.jpg" width="496" height="41" alt="">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td width="496">
+                                    <table width="496" border="0" cellpadding="0" cellspacing="0">
+                                        <tr>
+                                            <td width="130">
+                                                <img src="/br_payment_cielo/static/img/email_07.jpg" width="130" height="85" alt="">
+                                            </td>
+                                            <td  style="border-top: 1px solid #e72e68; border-bottom: 1px solid #e72e68; font-size: 12px;">
+                                                <table border="0" cellpadding="0" cellspacing="0">
+                                                    <tr>
+                                                        <td></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>
+                                                            <font>
+                                                                Plano Mensal (pré pago, renovação automática) | individual
+                                                                <br style="line-height: 100%;"/>
+                                                                Fusões e Aquisições
+                                                                <br style="line-height: 100%;"/>
+                                                                1 usúario
+                                                            </font>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td></td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <img src="/br_payment_cielo/static/img/email_08.jpg" width="496" height="11" alt="">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td width="496" height="47" bgcolor="#e4e4e4">
+                                    <font style="font-size: 12px; font-weight: 700;display:block;text-align:center;">
+                                        <strong style="color:#e41b2d;">R$ ${object.amount} </strong>por mês  no cartão de crédito
+                                    </font>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <img src="/br_payment_cielo/static/img/email_10.jpg" width="496" height="20" alt="">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td width="496" height="60">
+                                    <table>
+                                        <tr>
+                                            <td width="19" bgcolor="#ffffff"></td>
+                                            <td width="294">
+                                                <font style="font-size: 12px; line-height: 20px; font-weight: 700;">
+                                                    Nome: ${object.partner_id.name}
+                                                    <br />
+                                                    CPF: ${object.partner_id.cnpj_cpf}
+                                                    <br />
+                                                    E-mail: ${object.partner_id.email}
+                                                </font>
+                                            </td>
+                                            <td width="168" valign="bottom">
+                                                <img src="/br_payment_cielo/static/img/email_14.jpg" alt="">
+                                            </td>
+                                            <td width="15"></td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <img src="/br_payment_cielo/static/img/email_12.jpg" width="496" height="110" alt="">
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                    <td>
+                        <img src="/br_payment_cielo/static/img/email_04.jpg" width="76" height="467" alt="">
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <img src="/br_payment_cielo/static/img/email_13.jpg" width="642" height="60" alt="">
+        </td>
+    </tr>
+</table>
+</body>
+</html>
+]]></field>
+        </record>
+        
+    </data>
+</odoo>
