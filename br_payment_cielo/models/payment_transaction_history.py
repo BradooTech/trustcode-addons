@@ -13,4 +13,4 @@ class PaymentTransactionHistoty(models.Model):
     state_cielo = fields.Selection(
         [('1', u'Pendente'), ('2', u'Pago'), ('3', u'Negado'),
          ('5', u'Cancelado'), ('6', u'Não Finalizado'), ('7', u'Autorizado')],
-        string=u"Situação Cielo")
+        string=u"Status Cielo")
