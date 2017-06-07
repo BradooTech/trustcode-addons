@@ -38,6 +38,7 @@
                                 <tree>
                                     <field name='payment_transaction_id'/>
                                     <field name='state'/>
+                                    <field name='state_cielo'/>
                                     <field name='date_now'/>
                                 </tree>
                             </field>    

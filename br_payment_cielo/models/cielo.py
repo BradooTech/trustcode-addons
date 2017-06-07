@@ -208,7 +208,8 @@ class TransactionCielo(models.Model):
             self.create_invoice_nfse()
             
 
-        self.env['payment.transaction.history'].create({'payment_transaction_id':self.id,'state':state,'date_now':datetime.now()})
+        self.env['payment.transaction.history'].create({'payment_transaction_id':self.id,'state':state,
+            'date_now':datetime.now(),'state_cielo':state_cielo})
         self.partner_id.write({'last_payment_state':state,'sync_lexis':False})
         if state == 'done':
             self.partner_id.write({'close_date': (datetime.now() + relativedelta(months=1)),
