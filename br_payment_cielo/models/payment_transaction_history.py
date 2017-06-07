@@ -10,4 +10,6 @@ class PaymentTransactionHistoty(models.Model):
     state = fields.Selection([('error', 'Error'),
     	('done', 'Done')])
     date_now = fields.Datetime(string='Date of Transaction')
-    state_cielo = fields.Char(string=u'State Cielo')
+    state_cielo = fields.Selection(
+        [('1', u'Pendente'), ('2', u'Pago'), ('3', u'Negado'),
+         ('5', u'Cancelado'), ('6', u'Não Finalizado'), ('7', u'Autorizado')],
