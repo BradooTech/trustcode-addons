@@ -20,6 +20,7 @@
         'subscription'
     ],
     'data': [
+        'security/ir.model.access.csv',
         'views/cielo.xml',
         'views/payment_acquirer.xml',
         'views/res_config_view.xml',
