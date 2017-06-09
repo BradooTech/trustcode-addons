@@ -293,39 +293,38 @@ class TransactionCielo(models.Model):
                 'date_invoice': datetime.now().strftime("%Y-%m-%d")
                 })
                 
-            ''' Comentando para remoção dos dados de envio e geração de nota fiscal'''
-            # invoice.action_invoice_open()
+            invoice.action_invoice_open()
             
 
-            # edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
+            edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
             
-            # ReportXml = self.env['ir.actions.report.xml']
-            # Report = self.env['report']
+            ReportXml = self.env['ir.actions.report.xml']
+            Report = self.env['report']
             
-            # for doc in edoc:
-            #     if doc.state == 'draft':
-            #         doc.action_send_eletronic_invoice()
+            for doc in edoc:
+                if doc.state == 'draft':
+                    doc.action_send_eletronic_invoice()
                     
-            #         report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
-            #         bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
-            #         pdf_final = bin_pdf.encode('base64')
-            #         attach = self.env['ir.attachment'].create({
-            #             'name':'NFse ' + str(doc.partner_id.name),
-            #             'res_model':'invoice.eletronic',
-            #             'type':'binary',
-            #             'datas_fname': 'Nfse.pdf',
-            #             'res_id': doc.id,
-            #             'datas': pdf_final,
-            #             'res_name':'NFse'
-            #         })
+                    report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
+                    bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
+                    pdf_final = bin_pdf.encode('base64')
+                    attach = self.env['ir.attachment'].create({
+                        'name':'NFse ' + str(doc.partner_id.name),
+                        'res_model':'invoice.eletronic',
+                        'type':'binary',
+                        'datas_fname': 'Nfse.pdf',
+                        'res_id': doc.id,
+                        'datas': pdf_final,
+                        'res_name':'NFse'
+                    })
                     
-            #         attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
+                    attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
                     
-            #        template_id = self.env.ref('br_payment_cielo.mail_template_data_lexis_nfse')
-            #        mail_template = self.env['mail.template'].browse(template_id.id)
-            #        mail_template.update({
-            #            'attachment_ids': [(4, attachment.id) for attachment in attachment_ids]
-            #            })
+                   template_id = self.env.ref('br_payment_cielo.mail_template_data_lexis_nfse')
+                   mail_template = self.env['mail.template'].browse(template_id.id)
+                   mail_template.update({
+                       'attachment_ids': [(4, attachment.id) for attachment in attachment_ids]
+                       })
                     
-            #        mail_template.send_mail(self.id)
+                   mail_template.send_mail(self.id)
             
