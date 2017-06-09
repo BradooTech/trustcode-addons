@@ -112,6 +112,7 @@ class AcquirerCielo(models.Model):
         request_post = requests.post(
             "https://cieloecommerce.cielo.com.br/api/public/v1/orders",
             data=json_send, headers=headers, verify=False)
+        print request_post.content
         response = request_post.text
         resposta = json.loads(response)
 
