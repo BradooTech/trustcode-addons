@@ -265,6 +265,9 @@ class TransactionCielo(models.Model):
     def create_invoice_nfse(self):
         invoice_line_ids_construct = []
         for line in self.sale_order_id.order_line:
+            pis_cst = line.product_id.taxes_id.search([('account.tax','=','pis')]).id
+            cofins_cst = line.product_id.taxes_id.search([('account.tax','=','cofins')]).id
+            tax_issqn_id = line.product_id.taxes_id.search([('account.tax','=','issqn')]).id
             invoice_line_ids_construct.append(
                     (0, 0, {
                         'name': line.name,
@@ -277,9 +280,9 @@ class TransactionCielo(models.Model):
                         'product_id': line.product_id.id,
                         'product_type': line.product_id.type,
                         'service_type_id': line.product_id.service_type_id.id,
-                        'pis_cst': '01',
-                        'cofins_cst': '01',
-                        'tax_issqn_id': line.product_id.taxes_id.id,
+                        'pis_cst': (pis_cst or False),
+                        'cofins_cst': (cofins_cst or False),
+                        'tax_issqn_id': (tax_issqn_id or False),
                         'sale_line_ids': [(6, 0, [line.id])],
                         #'invoice_line_tax_ids': [(6, 0, line.product_id.tax_ids)],
                         }))
