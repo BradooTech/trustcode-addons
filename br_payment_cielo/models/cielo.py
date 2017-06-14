@@ -205,6 +205,7 @@ class TransactionCielo(models.Model):
         state = 'done' if state_cielo in ('2', '7') else state
 
         x = self.env['sale.order'].search([('name','=',reference)])
+        x.write({'payment_status': state_cielo,'cielo_return':True})
         print x
         
         if state == 'done':
