@@ -203,6 +203,8 @@ class TransactionCielo(models.Model):
         # 8 - Chargeback (somente para Cartão de Crédito)
         state = 'pending' if state_cielo == '1' else 'error'
         state = 'done' if state_cielo in ('2', '7') else state
+
+        self.env['sale.order'].search([('name','=','reference')]).write({'payment_status':state_cielo,'cielo_return':True})
         
         if state == 'done':
             self.create_invoice_nfse()
