@@ -205,9 +205,23 @@ class TransactionCielo(models.Model):
         state = 'done' if state_cielo in ('2', '7') else state
 
         self.env['sale.order'].search([('name','=',reference)]).write({'payment_status': state_cielo,'cielo_return':True})
+        so = self.env['sale.order'].search([('name','=',reference)])
         
         if state == 'done':
-            self.create_invoice_nfse()
+            if not so.subscription_id:
+                so.action_confirm()
+            if state_cielo == '2':
+                self.create_invoice_nfse()
+        
+        if amount != so.amount_total:
+            so.write({'amount': amount})
+            amount_dif = so.amount_total - amount
+            lines = len(so.order_line)
+            dif = amount_dif / lines
+            for line in so.order_line:
+                price_final = line.price_subtotal - dif
+                line.write({'price_subtotal': price_final, 'price_unit': price_final, 'valor_bruto': price_final})
+            
             
 
         self.env['payment.transaction.history'].create({'payment_transaction_id':self.id,'state':state,
@@ -286,6 +300,7 @@ class TransactionCielo(models.Model):
                         'pis_cst': line.product_id.tax_cst_pis,
                         'cofins_cst': line.product_id.tax_cst_cofins,
                         'sale_line_ids': [(6, 0, [line.id])],
+                        'account_analytic_id': self.sale_order_id.subscription_id.analytic_account_id.id
                         #'invoice_line_tax_ids': [(6, 0, line.product_id.tax_ids)],
                         }))
             
@@ -293,45 +308,44 @@ class TransactionCielo(models.Model):
                 'partner_id': self.sale_order_id.partner_id.id,
                 'fiscal_document_id': 35, #preencher
                 'document_serie_id': 3,     #preencher
-                'origin': self.sale_order_id.name,
                 'account_id': self.sale_order_id.partner_id.property_account_receivable_id.id,
                 'invoice_line_ids':invoice_line_ids_construct,
-                'date_invoice': datetime.now().strftime("%Y-%m-%d")
+                'date_invoice': datetime.now().strftime("%Y-%m-%d"),
+                'origin': self.sale_order_id.subscription_id.code
                 })
                 
-            ''' Comentando para remoção dos dados de envio e geração de nota fiscal'''
-            invoice.action_invoice_open()
+            ''' COMENTAR CASO NECESSITE REMOVER A EMISSAO DE NF 
+            Comentando para remoção dos dados de envio e geração de nota fiscal'''
+            # invoice.action_invoice_open()
             
 
-            edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
+            # edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
             
-            ReportXml = self.env['ir.actions.report.xml']
-            Report = self.env['report']
+            # ReportXml = self.env['ir.actions.report.xml']
+            # Report = self.env['report']
             
-            for doc in edoc:
-                if doc.state == 'draft':
-                    doc.action_send_eletronic_invoice()
+            # for doc in edoc:
+            #     if doc.state == 'draft':
+            #         doc.action_send_eletronic_invoice()
                     
-                    report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
-                    bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
-                    pdf_final = bin_pdf.encode('base64')
-                    attach = self.env['ir.attachment'].create({
-                        'name':'NFse ' + str(doc.partner_id.name),
-                        'res_model':'invoice.eletronic',
-                        'type':'binary',
-                        'datas_fname': 'Nfse.pdf',
-                        'res_id': doc.id,
-                        'datas': pdf_final,
-                        'res_name':'NFse'
-                    })
+            #         report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
+            #         bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
+            #         pdf_final = bin_pdf.encode('base64')
+            #         attach = self.env['ir.attachment'].create({
+            #             'name':'NFse ' + str(doc.partner_id.name),
+            #             'res_model':'invoice.eletronic',
+            #             'type':'binary',
+            #             'datas_fname': 'Nfse.pdf',
+            #             'res_id': doc.id,
+            #             'datas': pdf_final,
+            #             'res_name':'NFse'
+            #         })
                     
-                    attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
-                    template_id = self.env.ref('br_payment_cielo.mail_template_data_lexis_nfse')
-                    mail_template = self.env['mail.template'].browse(template_id.id)
-                    mail_id = mail_template.send_mail(self.id)
-                    mail = self.env['mail.mail'].browse(mail_id)
-                    mail.update({
-                        'attachment_ids':[(4, attachment.id) for attachment in attachment_ids]
-                    })
-
-
+            #         attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
+            #         template_id = self.env.ref('br_payment_cielo.mail_template_data_lexis_nfse')
+            #         mail_template = self.env['mail.template'].browse(template_id.id)
+            #         mail_id = mail_template.send_mail(self.id)
+            #         mail = self.env['mail.mail'].browse(mail_id)
+            #         mail.update({
+            #             'attachment_ids':[(4, attachment.id) for attachment in attachment_ids]
+            #         })
