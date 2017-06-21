@@ -12,14 +12,11 @@ from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT
 
-
 _logger = logging.getLogger(__name__)
-
 
 
 class AcquirerCielo(models.Model):
     _inherit = 'payment.acquirer'
-
 
     provider = fields.Selection(selection_add=[('cielo', 'Cielo')])
     cielo_merchant_id = fields.Char(string='Cielo Merchant Id')
@@ -27,20 +24,47 @@ class AcquirerCielo(models.Model):
 
     @api.model
     def generate_form(self, partner, template_code, coupon=False):
+        '''
+        Função que é chamada na integração via API com o Odoo
+        params: partner: id do cliente(res.partner)
+                template_code: codigo do template de cotação
+                coupon=Cupom passado pelo cliente para desconto
+        workflow: busca o objeto do template de cotação
+                cria uma Order de Venda inserindo o partner, template de cotacao e cupon
+                chama o metodo calc_validate_cupon_lexis_api que calculo
+                para cada linha no template de cotação ele adiciona na linha da Order de Venda
+                e para cada linha ele chama o metodo _onchange_discount que carrega o desconto
+                cria uma payment transaction com os valores da ordem de venda
+                e chama a funcao da cielo
+        return: url da cielo
+        '''
         template = self.env['sale.quote.template'].search([('code','=', template_code)])
-        order = self.env['sale.order'].create({'partner_id': partner, 'template_id': template.id})
-        order.cupon_lexis = coupon
+        order = self.env['sale.order'].create({
+            'partner_id': partner, 
+            'template_id': template.id,
+            'cupon_lexis':coupon
+            })
         order.calc_validate_cupon_lexis_api()
         for item in template.quote_line:
-            line = self.env['sale.order.line'].create({'order_id': order.id, 'product_id': item.product_id.id})
+            line = self.env['sale.order.line'].create({
+                'order_id': order.id, 
+                'product_id': item.product_id.id
+                })
             line._onchange_discount()
         self.env['payment.transaction'].create_transaction(order)
         cielo = self.cielo_form_generate_values(order)
         return cielo
 
-
     @api.multi
     def cielo_form_generate_values(self, values):
+        '''
+        Metodo que recebe os valores da sale.order, faz o post na cielo e retorna a url
+        params: values: valor da sale.order
+        workflow: recebe a sale.order, trata os valores em um dicionario
+                envia o post para a cielo
+                verifica se houve erro no retorno, caso sim gera log caso nao retorna a url
+        return: erro ou url da cielo
+        '''
         merchant_id = self.env['payment.acquirer'].search([('name','=','Cielo')]).cielo_merchant_id
         return_url = self.env['payment.acquirer'].search([('name','=','Cielo')]).return_url
         total_desconto = 0
@@ -123,8 +147,14 @@ class AcquirerCielo(models.Model):
             return {
                 'checkout_url': resposta["settings"]["checkoutUrl"]
                 }
+
     @api.multi
     def check_recurring(self, values):
+        '''
+        Metodo chamado no cielo_form_generate_values, verifica a periodicidade
+            do template de subscription
+        return: o intervalo e a end date
+        '''
         interval = ''
         if values.template_id.contract_template:
             rec_int = values.template_id.contract_template.recurring_interval
@@ -179,6 +209,10 @@ class TransactionCielo(models.Model):
 
     @api.model
     def _cielo_form_get_tx_from_data(self, data):
+        ''' 
+        Recebe o dicionario recebido pela Cielo, verifica se esta correto
+        e procura uma referencia com o order_number. 
+        '''
         reference = data.get('order_number')
         txs = self.env['payment.transaction'].search(
             [('reference', '=', reference)])
@@ -186,14 +220,33 @@ class TransactionCielo(models.Model):
 
     @api.multi
     def _cielo_form_validate(self, data):
+        '''
+        Metodo que recebe o post da cielo e altera os dados caso necessario
+        workflow:
+            Navega ate a sale.order e grava o retorno e que houve retorno
+
+            Verifica se o amount enviado pela cielo é diferente da sale.order
+            Caso sim envia um email informando essa diferença
+
+            Verifica o state se done:
+                Grava uma nova data no partner
+                Verifica se ja foi criado uma subscription
+                Verifica se o status é igual a 2
+                    se sim cria o invoice e 
+                    Atualiza a data de fim do contrato
+
+            Cria um payment history dessa transação
+
+            Grava o state no partner
+
+        '''
         reference = data.get('order_number')
         txn_id = data.get('checkout_cielo_order_number')
         cielo_id = data.get('tid', False)
         payment_type = data.get('payment_method_type')
         amount = float(data.get('amount', '0')) / 100.0
+
         state_cielo = data.get('payment_status')
-
-
         # 1 - Pendente (Para todos os meios de pagamento)
         # 2 - Pago (Para todos os meios de pagamento)
         # 3 - Negado (Somente para Cartão Crédito)
@@ -202,46 +255,43 @@ class TransactionCielo(models.Model):
         # 6 - Não Finalizado (Todos os meios de pagamento)
         # 7 - Autorizado (somente para Cartão de Crédito)
         # 8 - Chargeback (somente para Cartão de Crédito)
+
         state = 'pending' if state_cielo == '1' else 'error'
         state = 'done' if state_cielo in ('2', '7') else state
 
-        self.env['sale.order'].search([('name','=',reference)]).write({'payment_status': state_cielo,'cielo_return':True})
         so = self.env['sale.order'].search([('name','=',reference)])
+        so.write({'payment_status': state_cielo,'cielo_return':True})
         
+        self.partner_id.write({'last_payment_state':state,'sync_lexis':False})            
+
         if amount != so.amount_total:
-            # so.write({'amount': amount})
-            amount_dif = so.amount_total - amount
-            lines = len(so.order_line)
-            dif = amount_dif / lines
-            sub = self.sale_order_id.subscription_id
-            for sub_line in sub.recurring_invoice_line_ids:
-                price_final = sub_line.price_subtotal - dif
-                sub_line.write({'price_subtotal': price_final, 'price_unit': price_final})
-            for line in so.order_line:
-                price_final = line.price_subtotal - dif
-                line.write({'price_subtotal': price_final, 'price_unit': price_final, 'valor_bruto': price_final})
-
-            sub.write({'recurring_total':amount})
-
+            self.write({'amount':amount})
+            self.create_and_send_mail()
+            
 
         if state == 'done':
+            self.partner_id.write({
+                'close_date': (datetime.now() + relativedelta(months=1)),
+                'sync_lexis':False,
+                'is_trial': False
+                })
             if not so.subscription_id:
                 so.action_confirm()
             if state_cielo == '2':
                 self.create_invoice_nfse()
                 sub = self.sale_order_id.subscription_id
-                sub.write({'recurring_next_date': (datetime.strptime(sub.recurring_next_date, DEFAULT_SERVER_DATE_FORMAT) + relativedelta(months=1))})
-        
-            
-            
+                sub.write({
+                    'recurring_next_date': (datetime.strptime(sub.recurring_next_date, DEFAULT_SERVER_DATE_FORMAT) + relativedelta(months=1))
+                    })
 
-        self.env['payment.transaction.history'].create({'payment_transaction_id':self.id,'state':state,
-            'date_now':datetime.now(),'state_cielo':state_cielo})
-        self.partner_id.write({'last_payment_state':state,'sync_lexis':False})
-        if state == 'done':
-            self.partner_id.write({'close_date': (datetime.now() + relativedelta(months=1)),
-                                   'sync_lexis':False,
-                                   'is_trial': False})
+        self.env['payment.transaction.history'].create({
+            'payment_transaction_id':self.id,
+            'state':state,
+            'date_now':datetime.now(),
+            'state_cielo':state_cielo
+            })
+
+
             
         values = {
             'reference': reference,
@@ -274,7 +324,19 @@ class TransactionCielo(models.Model):
         return action
 
     @api.multi
+    def create_and_send_mail(self):
+        '''
+        Manda o email do Erro para a Fila de envio
+        '''
+        template_id = self.env.ref('lexisnexis.mail_template_sync_amount_cielo')
+        mail_template = self.env['mail.template'].browse(template_id.id)
+        mail_template.send_mail(self.id)
+
+    @api.multi
     def create_transaction(self, vals):
+        '''
+        Cria uma nova payment transaction com os valores informados
+        '''
         cielo_id = self.env['payment.acquirer'].search([('name','=', 'Cielo')]).id
         values = {
             'reference': vals.name,
