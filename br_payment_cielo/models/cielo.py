@@ -347,60 +347,70 @@ class TransactionCielo(models.Model):
             'acquirer_id': cielo_id,
         }
         return self.create(values)
-    
+
     @api.multi
     def create_invoice_nfse(self):
+        '''
+        Ao ser chamado, cria um invoice com as lines baseadas na sale.order.
+        Ao fim da criação do invoice, cria um Edoc para o invoice ao validar o mesmo (action_invoice_open).
+        A nota fiscal é gerada automaticamente na prefeitura (por metodos da localização), então cria-se um report em pdf,
+        e adiciona o pdf à um attachment.
+        Ao fim da função, um e-mail é criado pelo e-mail template "mail_template_data_lexis_nfse", e, antes do envio do mesmo,
+        adicionamos o pdf do report como um attachment.
+        '''
         invoice_line_ids_construct = []
         for line in self.sale_order_id.order_line:
-            pis_id = line.product_id.taxes_id.search([('domain','=','pis')]).id
-            cofins_id = line.product_id.taxes_id.search([('domain','=','cofins')]).id
-            tax_issqn_id = line.product_id.taxes_id.search([('domain','=','issqn')]).id
+            pis_id = line.product_id.taxes_id.search([('domain', '=', 'pis')]).id
+            cofins_id = line.product_id.taxes_id.search([('domain', '=', 'cofins')]).id
+            tax_issqn_id = line.product_id.taxes_id.search([('domain', '=', 'issqn')]).id
             invoice_line_ids_construct.append(
-                    (0, 0, {
-                        'name': line.name,
-                        'origin': self.sale_order_id.name,
-                        'account_id': line.product_id.property_account_income_id.id,
-                        'price_unit': line.price_subtotal,
-                        'quantity': line.product_uom_qty,
-                        #'discount': 0.0,
-                        'uom_id': line.product_id.uom_id.id,
-                        'product_id': line.product_id.id,
-                        'product_type': line.product_id.type,
-                        'service_type_id': line.product_id.service_type_id.id,
-                        'tax_cofins_id': (cofins_id or False),
-                        'tax_pis_id': (pis_id or False),
-                        'tax_issqn_id': (tax_issqn_id or False),
-                        'pis_cst': line.product_id.tax_cst_pis,
-                        'cofins_cst': line.product_id.tax_cst_cofins,
-                        'sale_line_ids': [(6, 0, [line.id])],
-                        'account_analytic_id': self.sale_order_id.subscription_id.analytic_account_id.id
-                        #'invoice_line_tax_ids': [(6, 0, line.product_id.tax_ids)],
-                        }))
-            
+                (0, 0, {
+                    'name': line.name,
+                    'origin': self.sale_order_id.name,
+                    'account_id': line.product_id.property_account_income_id.id,
+                    'price_unit': line.price_subtotal,
+                    'quantity': line.product_uom_qty,
+                    # 'discount': 0.0,
+                    'uom_id': line.product_id.uom_id.id,
+                    'product_id': line.product_id.id,
+                    'product_type': line.product_id.type,
+                    'service_type_id': line.product_id.service_type_id.id,
+                    'tax_cofins_id': (cofins_id or False),
+                    'tax_pis_id': (pis_id or False),
+                    'tax_issqn_id': (tax_issqn_id or False),
+                    'pis_cst': line.product_id.tax_cst_pis,
+                    'cofins_cst': line.product_id.tax_cst_cofins,
+                    'sale_line_ids': [(6, 0, [line.id])],
+                    'account_analytic_id': self.sale_order_id.subscription_id.analytic_account_id.id
+                    # 'invoice_line_tax_ids': [(6, 0, line.product_id.tax_ids)],
+                }))
+
         invoice = self.env['account.invoice'].create({
             'partner_id': self.sale_order_id.partner_id.id,
-            'fiscal_document_id': 35, #preencher
-            'document_serie_id': 3,     #preencher
+            'fiscal_document_id': 35,  # preencher
+            'document_serie_id': 3,  # preencher
             'account_id': self.sale_order_id.partner_id.property_account_receivable_id.id,
-            'invoice_line_ids':invoice_line_ids_construct,
+            'invoice_line_ids': invoice_line_ids_construct,
             'date_invoice': datetime.now().strftime("%Y-%m-%d"),
             'origin': self.sale_order_id.subscription_id.code
-            })
-            
+        })
+
         ''' COMENTAR CASO NECESSITE REMOVER A EMISSAO DE NF 
         Comentando para remoção dos dados de envio e geração de nota fiscal'''
         # invoice.action_invoice_open()
-        
+
 
         # edoc = self.env['invoice.eletronic'].search([('invoice_id','=',invoice.id)])
-        
+
         # ReportXml = self.env['ir.actions.report.xml']
         # Report = self.env['report']
-        
+
         # for doc in edoc:
         #     if doc.state == 'draft':
+        '''Função que envia a nota para a prefeitura pela biblioteca pytrustnfe'''
         #         doc.action_send_eletronic_invoice()
-                
+
+        '''Cria o report em pdf e faz o envode pra binário'''
         #         report = ReportXml.search([('model', '=', 'invoice.eletronic'),('name','=','Impressao de NFS-e Paulistana')], limit=1)
         #         bin_pdf = Report.get_pdf([doc.id], 'ir_csll_bradoo.main_template_br_nfse_danfe')
         #         pdf_final = bin_pdf.encode('base64')
@@ -413,12 +423,14 @@ class TransactionCielo(models.Model):
         #             'datas': pdf_final,
         #             'res_name':'NFse'
         #         })
-                
+        '''Busca o Attachment'''
         #         attachment_ids = self.env['ir.attachment'].search([('res_id','=', doc.id),('res_model','=','invoice.eletronic'),('mimetype','=','application/pdf')])
+        '''Gera o e-mail pelo template'''
         #         template_id = self.env.ref('br_payment_cielo.mail_template_data_lexis_nfse')
         #         mail_template = self.env['mail.template'].browse(template_id.id)
         #         mail_id = mail_template.send_mail(self.id)
         #         mail = self.env['mail.mail'].browse(mail_id)
+        '''adiciona o attachment ao e-mail na fila'''
         #         mail.update({
         #             'attachment_ids':[(4, attachment.id) for attachment in attachment_ids]
         #         })
